@@ -2,6 +2,32 @@
 src/core/classifier.py
 ======================
 Fase 3.2 — Clasificación funcional de páginas.
+
+Responsabilidades
+-----------------
+Para cada ``PageRecord`` rastreado, analiza el DOM renderizado (``html_snapshot``)
+y asigna uno o varios tipos funcionales a ``functional_types``.
+
+La clasificación es NO excluyente: una misma página puede pertenecer a
+varios tipos simultáneamente (p. ej., una página de trámite que tiene
+formulario Y es un listado de pasos será ``form`` + ``navigation``).
+
+Tipos funcionales disponibles
+------------------------------
+- ``home``          — Página raíz del sitio.
+- ``form``          — Contiene un formulario sustantivo (≥2 campos + submit).
+- ``navigation``    — Su contenido principal es un listado navegable
+                    (lista de enlaces, tarjetas, tabla de filas con links).
+- ``dynamic``       — Usa un framework JS moderno (React, Angular, Vue, etc.)
+                    o contiene elementos multimedia interactivos.
+- ``informational`` — Fallback para páginas de contenido textual que no
+                    encajan en ninguna categoría anterior.
+
+Criterio de diseño
+------------------
+Se basa exclusivamente en la estructura del DOM renderizado,
+no en patrones de URL. Esto es más preferente frente a sitios con 
+rutas no semánticas y portales institucionales con URLs generadas por CMS.
 """
 
 import copy
@@ -14,12 +40,32 @@ from bs4 import BeautifulSoup, Tag
 from src.models import PageRecord
 
 
+# ---------------------------------------------------------------------------
+# Constantes de clasificación
+# ---------------------------------------------------------------------------
+
+# Regex para identificar la página raíz por su path.
+# Cubre los patrones habituales de webs institucionales españolas.
 _HOME_PATH = re.compile(r"^/?$|^/index(\.\w+)?$|^/inicio$|^/home$", re.IGNORECASE)
+
+# Tipos de <input> que NO cuentan como campos interactivos para la detección
+# de formularios sustantivos. Excluimos también "search" para que una barra
+# de búsqueda simple (1 campo) no clasifique la página como "form".
 _EXCLUDED_INPUT_TYPES = {"hidden", "submit", "button", "reset", "image", "search"}
+
+# Cadenas que identifican frameworks JS modernos en el HTML raw.
+# Se buscan en minúsculas sobre el HTML completo en lugar de en el DOM
+# parseado porque algunos atributos (p. ej. data-reactroot) y variables
+# globales de JS (p. ej. __NEXT_DATA__) pueden aparecer en <script> inline
+# o en atributos que BeautifulSoup normaliza de formas distintas.
 _FRAMEWORK_SIGNATURES = [
+    # React (CRA) y Next.js
     "data-reactroot", "__next_data__", "_next/static",
+    # Angular (2+): ng-version en el elemento raíz; ng-app para AngularJS
     "ng-version", "ng-app", "ng-controller",
+    # Vue.js y Nuxt.js
     "data-v-", "__vue_app__", "__nuxt__",
+    # Patrones genéricos de hidratación de estado en SPAs
     "window.__initial_state__", "window.__state__",
 ]
 _NAV_MIN_ITEMS = 3
