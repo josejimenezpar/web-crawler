@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "IRA Crawler (CLI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ira_web_crawler.cli",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "https://www.comunidad.madrid/hospital/principeasturias/",
+                "--max-depth", "1",
+                "--min-pages", "5",
+                "--random-percent", "20",
+                "--output-prefix", "debug"
+            ]
+        }
+    ]
+}

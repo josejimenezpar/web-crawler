@@ -1,0 +1,23 @@
+[project]
+name = "ira-web-crawler"
+version = "0.1.0"
+description = "Crawler IRA para selección representativa de muestra web"
+readme = "README.md"
+authors = [
+    { name = "Jose A. Jimenez", email = "jose.jimenezp@atos.net" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.13.0",
+    "requests>=2.32.0",
+]
+
+[project.scripts]
+ira-web-crawler = "ira_web_crawler:main"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

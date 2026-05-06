@@ -175,3 +175,52 @@ Un script que **no decide accesibilidad**, pero que:
 *   Reduce el sesgo humano
 *   Facilita revisiones periódicas y auditorías
 
+***
+
+## 7. Implementación MVP (uv + librería para MCP)
+
+Se ha creado un proyecto Python con `uv` y un paquete reutilizable llamado `ira_web_crawler`, diseñado para ser consumido desde un MCP como librería.
+
+### 7.1. Estructura principal
+
+*   `pyproject.toml`: configuración del paquete y entrypoint CLI
+*   `src/ira_web_crawler/api.py`: API de librería (`crawl_and_select`) y exportadores JSON/CSV
+*   `src/ira_web_crawler/cli.py`: CLI mínima para ejecución con `uv run`
+*   `outputs/`: resultados exportados
+
+### 7.2. Uso como librería (MCP)
+
+```python
+from ira_web_crawler import crawl_and_select
+
+result = crawl_and_select(
+    root_url="https://www.ejemplo.gob.es",
+    max_depth=3,
+    min_pages=15,
+    random_percent=10,
+)
+
+print(result.candidate_count)
+print(len(result.selected_pages))
+print(result.random_percentage_real)
+```
+
+### 7.3. Uso por CLI
+
+```bash
+uv run ira-web-crawler https://www.ejemplo.gob.es --max-depth 3 --min-pages 15 --random-percent 10
+```
+
+Genera:
+
+*   `outputs/muestra_ira.json`
+*   `outputs/muestra_ira.csv`
+
+### 7.4. Validaciones incluidas en MVP
+
+*   Restricción al mismo dominio
+*   Exclusión de no-HTML
+*   Clasificación heurística por categorías funcionales
+*   Selección dirigida + aleatoria con trazabilidad
+*   Verificación de mínimos funcionales y porcentaje aleatorio
+
