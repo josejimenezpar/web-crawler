@@ -57,9 +57,11 @@ class Config:
 
     root_url: str
     max_depth: int = 3
+    max_crawled: int = 200
     min_pages: int = 15
     random_pct: float = 10.0
     exclude_patterns: List[str] = field(default_factory=lambda: list(EXCLUDE_DEFAULTS))
+    confine_to_path: bool = True
     delay_seconds: float = 1.0
     page_timeout_ms: int = 15000
     output_dir: str = "./output"
