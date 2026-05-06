@@ -12,21 +12,26 @@ from bs4 import BeautifulSoup
 
 def normalize_url(url: str) -> str:
     """
-    Elimina el fragmento (``#anchor``) de una URL para evitar duplicados.
+    Elimina el fragmento (#anchor) y el query string (?a=1&b=2) de una URL.
 
-    Los fragmentos son procesados por el navegador del cliente y no
-    representan páginas distintas en el servidor.
+    Los fragmentos no representan páginas distintas en el servidor.
+    Los query strings generan duplicados funcionales: la estructura HTML
+    evaluable en accesibilidad es la misma independientemente de los parámetros.
     """
     parsed = urlparse(url)
-    normalized = parsed._replace(fragment="")
+    normalized = parsed._replace(fragment="", query="")
     return urlunparse(normalized)
 
 
 def is_same_domain(url: str, root_url: str) -> bool:
-    """
-    Comprueba que ``url`` pertenece al mismo dominio que ``root_url``.
-    """
     return urlparse(url).netloc == urlparse(root_url).netloc
+
+
+def is_under_path(url: str, root_url: str) -> bool:
+    """Comprueba que url está bajo el mismo path que root_url."""
+    root_path = urlparse(root_url).path.rstrip("/")
+    candidate_path = urlparse(url).path
+    return is_same_domain(url, root_url) and candidate_path.startswith(root_path)
 
 
 def is_excluded(url: str, patterns: List[str]) -> bool:
