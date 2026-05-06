@@ -1,177 +1,286 @@
+# Explicación completa de `crawler.py`
 
-## 1. Objetivo del script
+Este script está diseñado para hacer una auditoría de accesibilidad WCAG basada en un rastreo automático de un sitio web. Está dividido en 6 fases:
 
-Automatizar la **identificación, selección y descarga estructurada** de un conjunto de páginas web de un mismo sitio, de forma que:
+1. RASTREO
+2. CLASIFICACIÓN
+3. SELECCIÓN DIRIGIDA
+4. SELECCIÓN ALEATORIA
+5. VALIDACIÓN
+6. EXPORTACIÓN
 
-*   Se garantice una **muestra mínima de 15 páginas**
-*   La muestra sea **representativa funcionalmente**
-*   **Al menos el 10 %** de las páginas seleccionadas (mínimo 2) se elijan **aleatoriamente**
-*   Se genere una **base preparada para evaluación de accesibilidad** (no el análisis WCAG en sí)
+---
 
-***
+## Encabezado y propósito
 
-## 2. Entradas del sistema
+El archivo comienza con un bloque de comentarios (`""" ... """`) que explica su objetivo: descubrir páginas de un sitio, clasificarlas, elegir una muestra adecuada y generar CSV/JSON con un registro de decisiones.
 
-El script debe aceptar como entrada:
+### Qué se describe ahí
 
-1.  **URL raíz del sitio web**  
-    Ejemplo: `https://www.ejemplo.gob.es`
+- **Entrada esperada:** URL raíz, profundidad, número mínimo de páginas, porcentaje aleatorio.
+- **Salida:** CSV, JSON y log.
+- **Requisitos de auditoría:** mínimo 15 páginas, 90% dirigidas, 10% aleatorias, mismas páginas del dominio, excluir recursos no HTML.
 
-2.  **Parámetros configurables**
-    *   Profundidad máxima de rastreo (por defecto: 3 niveles)
-    *   Número mínimo de páginas a seleccionar (por defecto: 15)
-    *   Porcentaje de páginas aleatorias (por defecto: 10 %)
-    *   Exclusión de patrones de URL (logout, trackers, parámetros irrelevantes, etc.)
+---
 
-***
+## Imports básicos
 
-## 3. Fases funcionales del script
+El script importa módulos estándar y externos:
 
-### 3.1. Rastreo inicial del sitio (crawling)
+- `json`, `csv`, `os`, `sys`, `random`, `re`, `logging`, `datetime`, `Path`, `typing`, `urllib.parse`, `defaultdict`
+- `requests`
+- `BeautifulSoup` de `bs4`
 
-Función:
+También incluye un arreglo para Windows que fuerza UTF-8 en la salida estándar si el script se ejecuta en Windows.
 
-*   Descubrir URLs internas accesibles desde la página principal.
+---
 
-Requisitos funcionales:
+## `AuditLogger`
 
-*   Restringir el rastreo al **mismo dominio**
-*   Excluir:
-    *   Recursos no HTML (imágenes, CSS, JS, PDFs)
-    *   URLs duplicadas por parámetros
-*   Registrar:
-    *   URL
-    *   Profundidad
-    *   Página origen
+### Propósito
 
-Resultado:
+Registrar en detalle todo lo que hace el crawler para que el proceso sea trazable.
 
-*   Conjunto normalizado de URLs candidatas
+### Métodos
 
-***
+#### `__init__(self, log_file: str = "audit_log.txt")`
+- Crea un logger que escribe un archivo `audit_log.txt` y también imprime en consola.
+- Guarda los registros en `self.entries`.
 
-### 3.2. Clasificación funcional de páginas
+#### `log(self, message: str)`
+- Registra una línea de log con marca de tiempo.
+- Añade esa línea a la lista interna `self.entries`.
 
-Cada URL detectada debe clasificarse automáticamente (heurística básica) en una o varias categorías:
+#### `get_entries(self) -> List[Dict]`
+- Devuelve todas las entradas guardadas en memoria.
 
-**Categorías mínimas requeridas**
+---
 
-*   Página de inicio (`/`, `/index`)
-*   Páginas de contenido informativo
-*   Páginas de navegación estructural (categorías, listados)
-*   Páginas con formularios (`<form>`)
-*   Páginas de servicios o procesos clave
-*   Páginas con contenido dinámico significativo
+## `WebCrawler`
 
-La clasificación puede basarse en:
+### Propósito
 
-*   Estructura HTML
-*   Presencia de ciertos elementos (`form`, `input`, `button`, `video`)
-*   Patrones de URL (`/tramites`, `/servicios`, `/buscar`)
+Descubrir URLs internas del sitio web sin salirse del dominio y evitando recursos que no sean páginas HTML.
 
-Resultado:
+### Métodos
 
-*   Lista de URLs etiquetadas por tipo funcional
+#### `__init__(self, root_url: str, max_depth: int = 3, logger: AuditLogger = None)`
+- Recibe la URL raíz y la profundidad máxima de rastreo.
+- Calcula el dominio base para comparar si una URL pertenece al mismo sitio.
+- Inicializa:
+  - `self.to_visit`: cola de URLs por visitar.
+  - `self.visited`: conjunto de URLs ya rastreadas.
+  - `self.discovered_urls`: lista de URLs encontradas.
+- Crea una sesión HTTP con `requests.Session()` y un User-Agent.
+- Registra el inicio del rastreo.
 
-***
+#### `_normalize_url(self, url: str) -> str`
+- Normaliza una URL para evitar duplicados.
+- Elimina fragmentos (`#...`).
+- Elimina parámetros de seguimiento como `utm_`, `gclid`, `fbclid`, etc.
+- Convierte dominio a minúsculas.
+- Quita slash final inconsistente.
+- Devuelve la URL normalizada.
 
-### 3.3. Selección dirigida (90 % mínimo)
+#### `_is_valid_html_url(self, url: str) -> bool`
+- Comprueba si la URL apunta posiblemente a una página HTML.
+- Rechaza rutas que terminan en `.css`, `.js`, `.jpg`, `.png`, `.pdf`, `.zip`, etc.
+- También elimina rutas con patrones como `logout`, `/admin/`, `/api/`, `/ws/`.
 
-Función:
-Garantizar la representatividad exigida por el IRA.
+#### `_is_same_domain(self, url: str) -> bool`
+- Verifica que la URL pertenezca al mismo dominio que la raíz inicial.
+- Solo acepta enlaces internos.
 
-Criterios obligatorios de selección dirigida:
+#### `crawl(self) -> List[Dict]`
+- Ejecuta el rastreo real usando BFS (breadth-first search).
+- Para cada URL en la cola:
+  - Normaliza la URL.
+  - Omite si ya se visitó.
+  - Omite si la profundidad excede `max_depth`.
+  - Hace una petición HTTP a la página.
+  - Parsea el HTML con BeautifulSoup.
+  - Guarda la URL en `self.discovered_urls`.
+  - Extrae todos los enlaces `<a href=...>`.
+  - Convierte enlaces relativos a absolutos.
+  - Valida cada enlace con `_is_valid_html_url` y `_is_same_domain`.
+  - Si es válido y no visitado, lo añade a la cola con profundidad +1.
+- Devuelve la lista de URLs descubiertas.
 
-*   1 página de inicio
-*   ≥ 1 página con formulario
-*   ≥ 1 página de servicio o trámite
-*   ≥ 1 página de navegación/listado
-*   Páginas a distintos niveles de profundidad
-*   Páginas con distinta estructura y complejidad
+---
 
-Regla:
+## `FunctionalClassifier`
 
-*   **Al menos el 90 %** de las páginas seleccionadas (13 de 15) deben proceder de esta selección dirigida.
+### Propósito
 
-Resultado:
+Clasificar cada URL encontrada según su tipo funcional para poder seleccionar una muestra representativa.
 
-*   Conjunto base de páginas justificables ante una auditoría
+### Métodos
 
-***
+#### `__init__(self, session: requests.Session, logger: AuditLogger)`
+- Recibe una sesión HTTP y el logger.
+- Usará `requests` para descargar cada página y BeautifulSoup para analizarla.
 
-### 3.4. Selección aleatoria (≥ 10 %)
+#### `classify(self, url: str) -> List[str]`
+- Descarga la URL.
+- Identifica categorías a partir de la URL y del contenido HTML.
+- **Categorías posibles:** `inicio`, `informativo`, `navegacion`, `formulario`, `servicio`, `dinamico`.
+- Si no encaja en ninguna, devuelve `otro`.
+- Usa reglas simples:
+  - `inicio` si la ruta es `/`, `/index`, etc.
+  - `informativo` si hay `/noticias`, `/blog`, o etiqueta `<article>`/`<main>`.
+  - `navegacion` si hay rutas tipo `/servicios`, `/tramites` o muchas listas `<ul>`/`<ol>`.
+  - `formulario` si aparece un `<form>`.
+  - `servicio` si la URL sugiere trámite/servicio.
+  - `dinamico` si detecta scripts con `fetch` o `axios`.
 
-Función:
-Cumplir el requisito de aleatoriedad exigido.
+---
 
-Criterios:
+## `PageSelector`
 
-*   Seleccionar aleatoriamente URLs **no usadas** en la selección dirigida
-*   Deben ser páginas HTML válidas y accesibles
-*   No pueden sustituir páginas “obligatorias” (home, formulario, servicio)
+### Propósito
 
-Regla:
+Seleccionar la muestra final de páginas asegurando que haya:
 
-*   **Mínimo 10 % del total**, redondeando al alza  
-    → Con 15 páginas ⇒ **2 páginas aleatorias**
+- 90% de selección dirigida
+- 10% de selección aleatoria
+- Al menos 15 páginas
+- Tipos funcionales mínimos
 
-Resultado:
+### Métodos
 
-*   Subconjunto marcado explícitamente como `random=true`
+#### `__init__(self, urls: List[Dict], classifier: FunctionalClassifier, logger: AuditLogger)`
+- Recibe todas las URLs descubiertas y el clasificador.
+- Clasifica cada URL y añade el resultado en `url_info['categories']`.
+- Registra cada URL y sus categorías.
 
-***
+#### `select(self, min_pages: int = 15, random_percent: float = 0.10) -> Tuple[List[Dict], List[Dict]]`
+- Selecciona primero un conjunto dirigido.
+- **Criterios directos:**
+  - Una página de inicio
+  - Una página con formulario
+  - Una página de servicio/trámite
+  - Una página de navegación/listado
+  - También intenta distribuir páginas por profundidad.
+- Luego recorta la lista dirigida al 90% de `min_pages`.
+- Marca esas páginas con:
+  - `selection_type = 'dirigida'`
+  - `selection_reason = 'Criterio de representatividad'`
+- Para la **selección aleatoria:**
+  - Elige al menos 2 páginas o el 10% de `min_pages`, lo que sea mayor.
+  - Toma páginas no usadas por la selección dirigida.
+  - Marca `selection_type = 'aleatoria'`.
+- Devuelve dos listas: `directed` y `random_selection`.
 
-### 3.5. Validación final de la muestra
+---
 
-Antes de finalizar, el script debe comprobar:
+## `SampleValidator`
 
-*   Total de páginas ≥ 15
-*   Páginas únicas (sin duplicados funcionales evidentes)
-*   Cumplimiento del porcentaje aleatorio
-*   Presencia de todos los tipos funcionales mínimos
+### Propósito
 
-Si no se cumple:
+Verificar que la muestra final cumpla con los requisitos del proceso.
 
-*   Ajustar selección automáticamente
-*   Registrar advertencias en el log
+### Métodos
 
-***
+#### `__init__(self, logger: AuditLogger)`
+- Recibe el logger y prepara `self.warnings`.
 
-## 4. Salidas del sistema
+#### `validate(self, directed: List[Dict], random_selection: List[Dict], min_pages: int = 15) -> bool`
+- Verifica:
+  - Total de páginas ≥ `min_pages`
+  - Al menos 2 páginas aleatorias
+  - Los tipos funcionales mínimos están presentes (`inicio`, `formulario`, `servicio`, `navegacion`)
+  - Se cubren varias profundidades
+  - No hay URLs duplicadas
+- Registra advertencias si algo falta.
+- Devuelve `True` si no hay advertencias, `False` si hay problemas.
 
-El script debe generar como mínimo:
+---
 
-1.  **Listado estructurado de páginas seleccionadas**
-    *   URL
-    *   Tipo funcional
-    *   Nivel de profundidad
-    *   Selección: dirigida / aleatoria
+## `SampleExporter`
 
-2.  **Archivo exportable**
-    *   CSV o JSON
-    *   Compatible con el IRA (columna “Página de la muestra”)
+### Propósito
 
-3.  **Log de ejecución**
-    *   Número final de páginas
-    *   Porcentaje aleatorio real
-    *   Reglas aplicadas
+Guardar la muestra seleccionada en archivos auditables.
 
-***
+### Métodos
 
-## 5. Consideraciones clave de cumplimiento IRA
+#### `__init__(self, output_dir: str = "audit_results")`
+- Crea la carpeta `audit_results` si no existe.
 
-*   La selección debe ser **defendible**, no solo técnica
-*   Las páginas deben representar **uso real del sitio**
-*   El componente aleatorio debe estar **claramente identificado**
-*   El proceso debe ser **repetible y trazable**
+#### `export_csv(self, pages: List[Dict], filename: str = "muestra_wcag.csv")`
+- Genera un CSV con: URL, categorías, profundidad, tipo de selección, motivo de selección.
+- Devuelve la ruta del archivo generado.
 
-***
+#### `export_json(self, pages: List[Dict], filename: str = "muestra_wcag.json")`
+- Genera un JSON con metadatos y la lista completa de páginas.
+- Devuelve la ruta del archivo generado.
 
-## 6. Resultado esperado
+---
 
-Un script que **no decide accesibilidad**, pero que:
+## `main(...)`
 
-*   Produce una **muestra válida para el IRA**
-*   Reduce el sesgo humano
-*   Facilita revisiones periódicas y auditorías
+### Propósito
 
+Coordinador general que ejecuta todo el proceso.
+
+### Flujo
+
+1. Crea el logger.
+2. Inicia el `WebCrawler` y ejecuta `crawl()`.
+3. Si no hay URLs, termina.
+4. Crea el `FunctionalClassifier`.
+5. Crea el `PageSelector` y llama a `select()`.
+6. Crea el `SampleValidator` y llama a `validate()`.
+7. Exporta los resultados con `SampleExporter`.
+8. Muestra un resumen final en consola.
+
+### Parámetros
+
+| Parámetro | Descripción |
+|---|---|
+| `root_url` | La página inicial a rastrear |
+| `max_depth` | Profundidad máxima de rastreo |
+| `min_pages` | Cuántas páginas seleccionar como mínimo |
+| `random_percent` | Porcentaje de selección aleatoria |
+| `output_dir` | Carpeta de salida |
+
+---
+
+## Bloque final `if __name__ == "__main__":`
+
+### Qué hace
+
+- Pide al usuario una URL raíz por consola.
+- Si no empieza con `http://` o `https://`, añade `https://`.
+- Ejecuta `main(...)` con parámetros por defecto:
+  - `max_depth=3`
+  - `min_pages=15`
+  - `random_percent=0.10`
+  - `output_dir="audit_results"`
+- Sale con código `0` si todo bien, `1` si falla.
+
+---
+
+## Resumen de cómo funciona
+
+1. El crawler parte de una URL inicial.
+2. Va siguiendo enlaces internos hasta 3 niveles de profundidad.
+3. Rechaza enlaces de archivos, recursos estáticos y fuera de dominio.
+4. Clasifica cada página por su función.
+5. Elige una muestra equilibrada con criterios obligatorios y un componente aleatorio.
+6. Valida que la muestra sea sólida.
+7. Guarda CSV, JSON y log.
+
+---
+
+## Ideas clave
+
+| Clase | Responsabilidad |
+|---|---|
+| `AuditLogger` | Maneja los registros |
+| `WebCrawler` | Encuentra las páginas del sitio |
+| `FunctionalClassifier` | Decide el tipo de cada página |
+| `PageSelector` | Selecciona las páginas a auditar |
+| `SampleValidator` | Comprueba que la selección sea válida |
+| `SampleExporter` | Guarda los resultados en disco |
+| `main()` | Es el orden natural del proceso |
