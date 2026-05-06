@@ -1,8 +1,15 @@
 """Módulo para clasificar páginas web según su función.
 
-Este módulo agrupa todas las reglas de clasificación funcional que el
-crawler utiliza para etiquetar cada página como inicio, formulario,
-servicio, navegación, informativo o dinámico.
+Después de descubrir páginas, necesitamos entender qué tipo de página es cada una.
+Este módulo analiza cada página y le asigna categorías funcionales como:
+- 'inicio': la página principal del sitio
+- 'formulario': página que contiene un formulario
+- 'servicio': página orientada a trámites o solicitudes
+- 'navegacion': página con listados/menús
+- 'informativo': página con contenido informativo/noticias
+- 'dinamico': usa JavaScript para cargar contenido
+
+Esta información es crucial para seleccionar una muestra equilibrada.
 """
 
 from typing import List
