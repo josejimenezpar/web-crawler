@@ -8,10 +8,7 @@ import math
 import random
 from typing import List, Optional
 
-from src.models import Config, PageRecord
-
-
-_MANDATORY_TYPES = ["home", "form", "navigation"]
+from src.models import Config, PageRecord, MANDATORY_TYPES
 
 
 def select_pages(pages: List[PageRecord], config: Config) -> List[PageRecord]:
@@ -26,12 +23,12 @@ def select_pages(pages: List[PageRecord], config: Config) -> List[PageRecord]:
     n_random = math.ceil(n_total * config.random_pct / 100)
     n_directed = n_total - n_random
 
-    valid = [p for p in pages if p.status_code in range(200, 300)]
+    valid = [p for p in pages if p.is_success]
     used: set[str] = set()
     directed: List[PageRecord] = []
 
     # Paso 1: Tipos obligatorios
-    for type_ in _MANDATORY_TYPES:
+    for type_ in MANDATORY_TYPES:
         pick = _pick_one(valid, type_, used)
         if pick:
             pick.selection_mode = "directed"

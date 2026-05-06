@@ -8,10 +8,7 @@ import math
 import random
 from typing import List, Tuple
 
-from src.models import Config, PageRecord
-
-
-_REQUIRED_TYPES = {"home", "form", "navigation"}
+from src.models import Config, PageRecord, MANDATORY_TYPES
 
 
 def validate_and_adjust(
@@ -21,7 +18,7 @@ def validate_and_adjust(
 ) -> Tuple[List[PageRecord], List[str]]:
     """
     Valida muestra y aplica correcciones automáticas.
-    
+
     Comprobaciones:
     1. Deduplicación
     2. Cobertura funcional obligatoria
@@ -31,7 +28,7 @@ def validate_and_adjust(
     warnings: List[str] = []
 
     used = {p.url for p in selected}
-    pool = [p for p in all_pages if p.url not in used and p.status_code in range(200, 300)]
+    pool = [p for p in all_pages if p.url not in used and p.is_success]
 
     # 1. Deduplicación
     seen: set[str] = set()
@@ -46,7 +43,7 @@ def validate_and_adjust(
 
     # 2. Cobertura funcional
     covered = {t for p in selected for t in p.functional_types}
-    missing = _REQUIRED_TYPES - covered
+    missing = MANDATORY_TYPES - covered
 
     for type_ in missing:
         candidates = [p for p in pool if type_ in p.functional_types]
