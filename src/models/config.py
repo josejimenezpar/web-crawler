@@ -42,7 +42,7 @@ class Config:
     max_depth : int
         Número máximo de niveles de profundidad (default: 3).
     min_pages : int
-        Mínimo de páginas a seleccionar (default: 15).
+        Mínimo de páginas a seleccionar (default: 20).
     random_pct : float
         Porcentaje mínimo de páginas aleatorias (default: 10.0).
     exclude_patterns : set[str]
@@ -51,8 +51,8 @@ class Config:
 
     root_url: str
     max_depth: int = 3
-    max_crawled: int = 400
-    min_pages: int = 15
+    max_crawled: int = 200
+    min_pages: int = 20
     random_pct: float = 10.0
     exclude_patterns: Set[str] = field(default_factory=lambda: set(EXCLUDE_DEFAULTS))
     confine_to_path: bool = True

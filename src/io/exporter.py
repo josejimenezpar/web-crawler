@@ -98,9 +98,9 @@ def _write_log(
 
     lines = [
         "=== Crawler IRA — Execution Log ===",
+        f"Root URL     : {config.root_url}",
         f"Generated at : {generated_at}",
         f"Elapsed time : {elapsed_str}",
-        f"Root URL     : {config.root_url}",
         "",
         "--- Configuration ---",
         f"Max depth    : {config.max_depth}",
@@ -109,7 +109,7 @@ def _write_log(
         "",
         "--- Crawl ---",
         f"Visited      : {result.visited}",
-        f"Valid (2xx)  : {len(result.pages)}",
+        f"Valid        : {len(result.pages)}",
         f"Skipped      : {skipped_summary}",
         "",
         "--- Sample ---",
