@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import dataclasses
 import logging
+import time
 
 from src.models import Config
 from src.core import crawl, classify_pages, select_pages, validate_and_adjust
@@ -26,12 +27,9 @@ def build_config(args: argparse.Namespace) -> Config:
         max_depth=args.depth,
         max_crawled=args.max_crawled,
         min_pages=args.min_pages,
-        confine_to_path=args.confine_to_path,
         random_pct=args.random_pct,
-        exclude_patterns=extra_exclude,
-        delay_seconds=args.delay,
-        page_timeout_ms=args.timeout,
-        output_dir=args.output_dir,
+        max_concurrency=args.max_concurrency,
+        exclude_patterns=set(args.exclude) if args.exclude else set(),
     )
 
 
@@ -43,28 +41,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--url", required=True, help="URL raíz del sitio web")
     parser.add_argument("--depth", type=int, default=_D["max_depth"], metavar="N", help=f"Profundidad máxima (default: {_D['max_depth']})")
     parser.add_argument("--max-crawled", type=int, default=_D["max_crawled"], dest="max_crawled", metavar="N", help=f"Máximo de páginas a rastrear (default: {_D['max_crawled']})")
-    parser.add_argument("--no-confine", action="store_false", dest="confine_to_path", help="Rastrear todo el dominio, no solo el path raíz")
     parser.add_argument("--min-pages", type=int, default=_D["min_pages"], dest="min_pages", metavar="N", help=f"Páginas mínimas (default: {_D['min_pages']})")
     parser.add_argument("--random-pct", type=float, default=_D["random_pct"], dest="random_pct", metavar="PCT", help=f"Porcentaje aleatorio (default: {_D['random_pct']})")
+    parser.add_argument("--concurrency", type=int, default=_D["max_concurrency"], dest="max_concurrency", metavar="N", help=f"Tabs paralelas del navegador (default: {_D['max_concurrency']})")
     parser.add_argument("--exclude", nargs="*", metavar="PATTERN", help="Patrones de exclusión")
-    parser.add_argument("--delay", type=float, default=_D["delay_seconds"], metavar="SEC", help=f"Delay entre peticiones (default: {_D['delay_seconds']})")
-    parser.add_argument("--timeout", type=int, default=_D["page_timeout_ms"], metavar="MS", help=f"Timeout por página (default: {_D['page_timeout_ms']})")
-    parser.add_argument("--output-dir", default=_D["output_dir"], dest="output_dir", metavar="DIR", help=f"Directorio de salida (default: {_D['output_dir']})")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING"], dest="log_level", help="Nivel de log (default: INFO)")
     return parser.parse_args()
 
 
 async def main_async(config: Config) -> None:
     """Pipeline principal de ejecución."""
-    scope = "path" if config.confine_to_path else "dominio completo"
-    logger.info("Rastreando %s (scope=%s, max_depth=%d, max_crawled=%d)",
-                config.root_url, scope, config.max_depth, config.max_crawled)
+    start = time.perf_counter()
+    logger.info("Rastreando %s (max_depth=%d, max_crawled=%d)",
+                config.root_url, config.max_depth, config.max_crawled)
 
-    all_pages = await crawl(config)
-    logger.info("%d páginas rastreadas.", len(all_pages))
+    result = await crawl(config)
+    logger.info("%d páginas rastreadas.", len(result.pages))
 
     logger.info("Clasificando páginas ...")
-    all_pages = classify_pages(all_pages)
+    all_pages = classify_pages(result.pages)
 
     logger.info("Seleccionando muestra ...")
     selected = select_pages(all_pages, config)
@@ -72,15 +66,28 @@ async def main_async(config: Config) -> None:
     logger.info("Validando muestra ...")
     selected, warnings = validate_and_adjust(selected, all_pages, config)
 
+    for url in result.timeout_urls:
+        warnings.append(f"Timeout — saltada: {url}")
+    for url in result.error_urls:
+        warnings.append(f"Error de red — saltada: {url}")
+    for url in result.http_error_urls:
+        warnings.append(f"HTTP error — saltada: {url}")
+
     logger.info("Muestra final: %d páginas.", len(selected))
-    export(selected, warnings, config, total_crawled=len(all_pages))
+
+    elapsed = time.perf_counter() - start
+    export(selected, warnings, config, result, elapsed)
+
+    m, s = divmod(int(elapsed), 60)
+    logger.info("Tiempo total: %s | %d páginas rastreadas | muestra final: %d.",
+                f"{m}m {s}s" if m else f"{elapsed:.1f}s", len(result.pages), len(selected))
 
 
 def main() -> None:
     """Punto de entrada."""
     args = parse_args()
     logging.basicConfig(
-        level=args.log_level,
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)-8s] %(name)s — %(message)s",
         datefmt="%H:%M:%S",
     )

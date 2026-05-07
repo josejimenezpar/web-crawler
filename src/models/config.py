@@ -8,7 +8,7 @@ y la lista de patrones de URL excluidos por defecto.
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Set
 
 
 # ---------------------------------------------------------------------------
@@ -45,29 +45,24 @@ class Config:
         Mínimo de páginas a seleccionar (default: 15).
     random_pct : float
         Porcentaje mínimo de páginas aleatorias (default: 10.0).
-    exclude_patterns : list[str]
+    exclude_patterns : set[str]
         Patrones de URL a excluir.
-    delay_seconds : float
-        Pausa entre peticiones en segundos (default: 1.0).
-    page_timeout_ms : int
-        Timeout por página en ms (default: 15000).
-    output_dir : str
-        Directorio de salida (default: ./output).
     """
 
     root_url: str
     max_depth: int = 3
-    max_crawled: int = 200
+    max_crawled: int = 400
     min_pages: int = 15
     random_pct: float = 10.0
-    exclude_patterns: List[str] = field(default_factory=lambda: list(EXCLUDE_DEFAULTS))
+    exclude_patterns: Set[str] = field(default_factory=lambda: set(EXCLUDE_DEFAULTS))
     confine_to_path: bool = True
+    max_concurrency: int = 10
     delay_seconds: float = 1.0
     page_timeout_ms: int = 15000
     output_dir: str = "./output"
 
     def __post_init__(self) -> None:
+        # Elimina barras diagonales finales de la URL raíz para evitar duplicados
         self.root_url = self.root_url.rstrip("/")
-        for pattern in EXCLUDE_DEFAULTS:
-            if pattern not in self.exclude_patterns:
-                self.exclude_patterns.append(pattern)
+        # Combina patrones personalizados con los patrones por defecto
+        self.exclude_patterns.update(EXCLUDE_DEFAULTS)

@@ -4,7 +4,7 @@ src/utils/url.py
 Utilidades para normalización y filtrado de URLs.
 """
 
-from typing import List
+from typing import List, Set
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
@@ -34,7 +34,7 @@ def is_under_path(url: str, root_url: str) -> bool:
     return is_same_domain(url, root_url) and candidate_path.startswith(root_path)
 
 
-def is_excluded(url: str, patterns: List[str]) -> bool:
+def is_excluded(url: str, patterns: Set[str]) -> bool:
     """
     Devuelve ``True`` si la URL contiene alguno de los patrones de exclusión.
 
