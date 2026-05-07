@@ -88,11 +88,11 @@ Después de ejecutarlo, se generan:
 - `audit_results/muestra_wcag.json`: Datos estructurados con metadatos de auditoría.
 - `audit_log.txt`: Registro detallado de cada decisión tomada por el script.
 
-## Mejoras y Funcionalidades Añadidas (v2.0)
+## Mejoras y Funcionalidades Añadidas
 
 Se han implementado optimizaciones técnicas y funcionales para elevar la herramienta a un estándar profesional:
 
-### Optimización de Alto Rendimiento
+### Optimización de Rendimiento
 
 **Multithreading (Concurrencia):** El motor de rastreo utiliza ahora hilos simultáneos para la descarga de páginas, reduciendo el tiempo de ejecución en más de un 1000% respecto a la versión secuencial.
 
