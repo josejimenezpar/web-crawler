@@ -1,18 +1,6 @@
-"""Módulo para clasificar páginas web según su función.
+"""Módulo para clasificar páginas web según su función y complejidad."""
 
-Después de descubrir páginas, necesitamos entender qué tipo de página es cada una.
-Este módulo analiza cada página y le asigna categorías funcionales como:
-- 'inicio': la página principal del sitio
-- 'formulario': página que contiene un formulario
-- 'servicio': página orientada a trámites o solicitudes
-- 'navegacion': página con listados/menús
-- 'informativo': página con contenido informativo/noticias
-- 'dinamico': usa JavaScript para cargar contenido
-
-Esta información es crucial para seleccionar una muestra equilibrada.
-"""
-
-from typing import List
+from typing import Dict, List, Any
 from urllib.parse import urlparse
 
 import requests
@@ -20,56 +8,79 @@ from bs4 import BeautifulSoup
 
 
 class FunctionalClassifier:
-    """Determina el tipo funcional de cada página web."""
+    """Determina el tipo funcional y la complejidad de cada página web."""
 
-    def __init__(self, session: requests.Session):
+    def __init__(self, session: requests.Session, root_url: str = ""):
         self.session = session
+        # Guardamos la URL raíz para identificarla siempre como página de inicio
+        self.root_url = root_url.rstrip('/')
 
-    def classify(self, url: str) -> List[str]:
-        """Clasifica una URL y devuelve las etiquetas funcionales que se aplican."""
+    def analyze(self, url: str, html_content: str = None) -> Dict[str, Any]:
+        """Analiza una URL y devuelve las etiquetas funcionales y su nivel de complejidad."""
         categories: List[str] = []
+        complexity = "Desconocida"
 
         try:
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-        except requests.RequestException:
-            # Si no se puede obtener la página, no se asignan categorías.
-            return []
+            if html_content:
+                html_text = html_content
+            else:
+                response = self.session.get(url, timeout=10)
+                response.raise_for_status()
+                html_text = response.text
+                
+            soup = BeautifulSoup(html_text, 'html.parser')
+        except Exception:
+            return {'categories': [], 'complexity': complexity}
 
         parsed = urlparse(url)
         path = parsed.path.lower()
+        clean_url = url.rstrip('/')
 
-        # Inicio: páginas principales del sitio.
-        if path in ['/', '', '/index', '/index.html']:
+        # --- 1. CLASIFICACIÓN FUNCIONAL ---
+        
+        # Inicio: si es la URL raíz o patrones comunes
+        if clean_url == self.root_url or path in ['/', '', '/index', '/index.html']:
             categories.append('inicio')
 
-        # Informativo: páginas que contienen noticias, artículos o secciones de información.
+        # Informativo: noticias, blog o etiquetas semánticas
         if any(pattern in path for pattern in ['/noticias', '/blog', '/articulos', '/informacion']):
             categories.append('informativo')
         elif soup.find('article') or soup.find('main'):
             categories.append('informativo')
 
-        # Navegación: páginas con listados y menús extensos.
+        # Navegación: listados y menús
         if any(pattern in path for pattern in ['/servicios', '/tramites', '/categorias', '/listado']):
             categories.append('navegacion')
         elif len(soup.find_all('li')) > 5:
             categories.append('navegacion')
 
-        # Formulario: presencia de formularios en la página.
+        # Formulario
         if soup.find('form'):
             categories.append('formulario')
 
-        # Servicio: páginas orientadas a trámites o solicitudes.
+        # Servicio
         if any(pattern in path for pattern in ['/tramites', '/servicios', '/solicitud', '/proceso']):
             categories.append('servicio')
 
-        # Dinámico: página que probablemente usa JavaScript para cargar contenido.
-        if soup.find('script') and ('fetch' in response.text or 'axios' in response.text):
+        # Dinámico
+        if soup.find('script') and ('fetch' in html_text or 'axios' in html_text):
             categories.append('dinamico')
 
-        # Si no se detecta ninguna categoría conocida, asignar 'otro'.
         if not categories:
             categories.append('otro')
 
-        return categories
+        # --- 2. CÁLCULO DE COMPLEJIDAD ---
+        elementos = soup.find_all(['a', 'button', 'img', 'table', 'form', 'input', 'select', 'iframe', 'video'])
+        total_elementos = len(elementos)
+
+        if total_elementos < 40:
+            complexity = "Baja"
+        elif total_elementos < 100:
+            complexity = "Media"
+        else:
+            complexity = "Alta"
+
+        return {
+            'categories': categories,
+            'complexity': complexity
+        }

@@ -10,10 +10,13 @@ principales en orden:
 - selección de muestra
 - validación
 - exportación
+
+NUEVO: Se ha añadido control de tiempo para medir la eficiencia de la ejecución.
 """
 
 import sys
 import requests
+import time  # NUEVO: Importamos para medir el tiempo de ejecución
 
 if sys.platform == 'win32':
     import io
@@ -44,6 +47,9 @@ def main(root_url: str, max_depth: int = 3, min_pages: int = 15,
     Returns:
         True si el proceso se ejecutó, False si no se encontraron URLs.
     """
+    
+    # NUEVO: Iniciamos el cronómetro
+    start_time = time.time()
 
     # Imprime encabezado informativo de ejecución.
     print("=" * 80)
@@ -62,8 +68,9 @@ def main(root_url: str, max_depth: int = 3, min_pages: int = 15,
         return False
 
     # Fase 2: crear el clasificador funcional que etiquetará las páginas.
+    # NUEVO: Pasamos la root_url para identificar correctamente la página de 'inicio'
     session = requests.Session()
-    classifier = FunctionalClassifier(session)
+    classifier = FunctionalClassifier(session, root_url=root_url)
 
     # Fase 3 y 4: seleccionar páginas dirigidas y páginas aleatorias.
     selector = SampleSelector(discovered_urls, classifier, logger)
@@ -85,6 +92,13 @@ def main(root_url: str, max_depth: int = 3, min_pages: int = 15,
     csv_file = writer.write_csv(all_pages)
     json_file = writer.write_json(all_pages)
 
+    # NUEVO: Calculamos el tiempo total transcurrido
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    # Formateamos a minutos y segundos para que sea legible
+    minutes = int(elapsed_time // 60)
+    seconds = elapsed_time % 60
+
     # Mostrar un resumen de resultados y rutas de salida.
     print("\n" + "=" * 80)
     print("RESUMEN FINAL")
@@ -93,6 +107,13 @@ def main(root_url: str, max_depth: int = 3, min_pages: int = 15,
     print(f"Páginas seleccionadas: {len(all_pages)}")
     print(f"  - Dirigidas (90%): {len(directed)}")
     print(f"  - Aleatorias (10%): {len(random_selection)}")
+    
+    # NUEVO: Línea de tiempo de ejecución
+    if minutes > 0:
+        print(f"Tiempo de ejecución: {minutes}m {seconds:.2f}s")
+    else:
+        print(f"Tiempo de ejecución: {seconds:.2f} segundos")
+
     print(f"\nArchivos generados:")
     print(f"  CSV: {csv_file}")
     print(f"  JSON: {json_file}")

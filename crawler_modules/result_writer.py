@@ -7,6 +7,7 @@ guardar los resultados en archivos. Este módulo genera dos tipos de archivos:
 - JSON: un archivo estructurado con metadatos e información completa
 
 Estos archivos son la evidencia oficial de qué páginas se auditaron y por qué.
+Ahora se incluye la columna de Complejidad en los reportes.
 """
 
 import csv
@@ -52,6 +53,7 @@ class ResultWriter:
             writer.writerow([
                 'Página de la muestra',
                 'Tipo funcional',
+                'Complejidad',  # Añadida columna de complejidad en la primera fila
                 'Profundidad',
                 'Tipo de selección',
                 'Razón de selección'
@@ -61,6 +63,7 @@ class ResultWriter:
                 writer.writerow([
                     page['url'],  # la URL
                     ', '.join(page.get('categories', ['otro'])),  # categorías separadas por coma
+                    page.get('complexity', 'Desconocida'),  # Extraemos el dato de complejidad calculado
                     page['depth'],  # profundidad en el sitio
                     page.get('selection_type', ''),  # 'dirigida' o 'aleatoria'
                     page.get('selection_reason', '')  # por qué se eligió

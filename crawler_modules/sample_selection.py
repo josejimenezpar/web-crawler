@@ -30,11 +30,14 @@ class SampleSelector:
         self.classifier = classifier
         self.logger = logger
 
-        # Clasifica cada URL y guarda las categorías que se usarán en la selección.
-        self.logger.record("Fase 2: CLASIFICACIÓN FUNCIONAL")
+        # Clasifica cada URL y guarda las categorías y la complejidad que se usarán en la selección.
+        self.logger.record("Fase 2: CLASIFICACIÓN FUNCIONAL Y CÁLCULO DE COMPLEJIDAD")
         for url_info in self.urls:
-            url_info['categories'] = self.classifier.classify(url_info['url'])
-            self.logger.record(f"{url_info['url']} → {url_info['categories']}")
+            # Llamamos al método analyze que ahora devuelve un diccionario con categorías y complejidad
+            analysis = self.classifier.analyze(url_info['url'])
+            url_info['categories'] = analysis['categories']
+            url_info['complexity'] = analysis['complexity']  # Guardamos la complejidad
+            self.logger.record(f"{url_info['url']} → {url_info['categories']} | Complejidad: {url_info['complexity']}")
 
     def select(self, min_pages: int = 15, random_percent: float = 0.10) -> Tuple[List[Dict], List[Dict]]:
         """Selecciona las páginas que auditar: dirigidas + aleatorias.
