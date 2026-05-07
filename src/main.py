@@ -66,13 +66,6 @@ async def main_async(config: Config) -> None:
     logger.info("Validando muestra ...")
     selected, warnings = validate_and_adjust(selected, all_pages, config)
 
-    for url in result.timeout_urls:
-        warnings.append(f"Timeout — saltada: {url}")
-    for url in result.error_urls:
-        warnings.append(f"Error de red — saltada: {url}")
-    for url in result.http_error_urls:
-        warnings.append(f"HTTP error — saltada: {url}")
-
     logger.info("Muestra final: %d páginas.", len(selected))
 
     elapsed = time.perf_counter() - start

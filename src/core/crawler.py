@@ -29,10 +29,7 @@ async def crawl(config: Config) -> CrawlResult:
     queue: List[QueueItem] = [QueueItem(config.root_url, 0, "")]
     semaphore = asyncio.Semaphore(config.max_concurrency)
     in_scope = is_under_path if config.confine_to_path else is_same_domain
-    stats = {
-        "timeouts": 0, "errors": 0, "http_errors": 0,
-        "timeout_urls": [], "error_urls": [], "http_error_urls": [],
-    }
+    stats = {"timeouts": 0, "errors": 0, "http_errors": 0}
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
@@ -66,17 +63,14 @@ async def crawl(config: Config) -> CrawlResult:
                 for item, result in zip(tasks, results):
                     if isinstance(result, (asyncio.TimeoutError, PlaywrightTimeoutError)):
                         stats["timeouts"] += 1
-                        stats["timeout_urls"].append(item.url)
                         continue
                     if isinstance(result, Exception):
                         stats["errors"] += 1
-                        stats["error_urls"].append(item.url)
                         continue
                     html, status = result
                     if not html or status not in range(200, 400):
                         if status and status not in range(200, 400):
                             stats["http_errors"] += 1
-                            stats["http_error_urls"].append(item.url)
                         continue
                     records.append(PageRecord(
                         url=item.url,
@@ -101,9 +95,6 @@ async def crawl(config: Config) -> CrawlResult:
         timeouts=stats["timeouts"],
         errors=stats["errors"],
         http_errors=stats["http_errors"],
-        timeout_urls=stats["timeout_urls"],
-        error_urls=stats["error_urls"],
-        http_error_urls=stats["http_error_urls"],
     )
 
 
