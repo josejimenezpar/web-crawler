@@ -1,5 +1,5 @@
 """
-src/main.py
+src/cli.py
 ===========
 Punto de entrada principal del crawler IRA.
 """
